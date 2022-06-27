@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+        integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/gh/gitbrent/bootstrap4-toggle@3.6.1/css/bootstrap4-toggle.min.css"
+        rel="stylesheet">
+    <title>Terminal</title>
+</head>
+
+<style>
+    .middle {
+        height: 80vh;
+        display: flex;
+        align-items: center;
+    }
+
+    h1 {
+        text-align: center;
+        margin-bottom: 40px;
+    }
+
+    p {
+        margin: 0 5px 0 0;
+    }
+
+    .ind {
+        text-indent: 1.6em;
+    }
+</style>
+
+<body>
+    <div class="container my-2">
+        <div class="">
+            <form action="/admin" method="get">
+                <button type="submit">Admin Panel</button>
+            </form>
+            <!-- Terminal input -->
+            <div
+                class="col-xs-12 col-sm-12 col-md-8 col-lg-6 offset-lg-3 offset-md-2 d-flex justify-content-center flex-column">
+                <input type="text" name="commandline" id="commandline" class="m-2">
+            </div>
+            <!-- Terminal history -->
+            <div id="terminal"
+                class="col-xs-12 col-sm-12 col-md-8 col-lg-6 offset-lg-3 offset-md-2 flex-column-reverse "> </div>
+        </div>
+    </div>
+
+    <script>
+        var terminal_output_observation = 5
+        var terminal_output_observation_reset = 5
+        var terminal_time_refresh = 1000
+        var terminal = document.getElementById("terminal")
+        var firstpageload = true
+
+        /**
+         * Asynch sleep
+         */
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        /**
+         * Loop for checking smart home api terminal history and updating web terminal.
+        */
+        async function watching_output() {
+            while (true) {
+                if (terminal_output_observation) {
+                    get_output()
+                    terminal_output_observation -= 1
+                }
+                await sleep(terminal_time_refresh);
+            }
+        }
+
+        // Start watching smart home api history.
+        watching_output()
+
+        /**
+         * Adding web terminal line
+         * @param {str} line Add line to web terminal.
+        */
+        function addline(line) {
+            new_p = document.createElement("p");
+            if (line.substring(0, 2) != ">_") new_p.classList.add("ind")
+            new_line = document.createTextNode(line);
+            new_p.appendChild(new_line)
+            if (terminal.childElementCount > 0) terminal.insertBefore(new_p, terminal.firstElementChild)
+            else terminal.appendChild(new_p)
+        }
+
+        /**
+         * Send the command to smart home api by fetch.
+         * @param {str} send_command Command for smart home api.
+        */
+        function send_command(send_command) {
+            if (send_command == "watch stop") terminal_output_observation = 0;
+            else terminal_output_observation = terminal_output_observation_reset;
+            // addline(">_ " + send_command)
+            if (send_command == "clear") {
+                document.getElementById("terminal").innerHTML = "";
+                terminal_output_observation = 0
+            }
+            fetch('http://localhost:5000/webgui/aq_api_request',
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json;charset=utf-8' },
+                    body: JSON.stringify({ commandline: send_command, user: '{{uname}}', sessionlink: '{{sessionlink}}' })
+                });
+        }
+
+        // Add enter action on input. Terminal row.
+        document.getElementById("commandline").addEventListener("keyup", function (event) {
+            if (event.keyCode === 13) {
+                send_command(document.getElementById("commandline").value)
+                document.getElementById("commandline").value = ""
+            }
+        });
+
+        /**
+         * Update terminal history.
+         * @param {fetch json obj} resp_json Response from fetch in json obj.
+        */
+        function update_terminal(resp_json) {
+            terminal_lines = resp_json.terminal_updates
+            terminal_lines.forEach(line => {
+                addline(line)
+            });
+        }
+
+        /**
+         * Get terminal history from smart home api.
+         * Update web terminal history.
+        */
+        function get_output() {
+            let fpl = firstpageload
+            if (fpl) firstpageload = false
+            fetch('http://localhost:5000/webgui/aq_api_get_logs',
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json;charset=utf-8' },
+                    body: JSON.stringify({ first_page_load: fpl, user: '{{uname}}', sessionlink: '{{sessionlink}}' })
+                })
+                .then((response) => response.json())
+                .then((res_json => update_terminal(res_json)))
+        }
+
+        function close_link() {
+            fetch('http://localhost:5000/webgui/aq_api_request',
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json;charset=utf-8' },
+                    body: JSON.stringify({ commandline: "close_link", user: '{{uname}}', sessionlink: '{{sessionlink}}' })
+                });
+        }
+
+
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+        integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
+        crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"
+        integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1"
+        crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
+        integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/bootstrap4-toggle@3.6.1/js/bootstrap4-toggle.min.js"></script>
+
+</body>
+
+</html>
